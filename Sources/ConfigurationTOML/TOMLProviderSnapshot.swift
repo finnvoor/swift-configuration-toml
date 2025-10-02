@@ -1,5 +1,6 @@
 import Configuration
 import SystemPackage
+import TOMLDecoder
 #if canImport(FoundationEssentials)
 import FoundationEssentials
 #else
@@ -136,7 +137,7 @@ internal struct TOMLProviderSnapshot {
     /// Creates a snapshot by parsing TOML data from a file.
     ///
     /// This initializer reads TOML data from the specified file, parses it using
-    /// a built-in TOML parser, and converts the parsed values into the internal
+    /// the TOMLDecoder library, and converts the parsed values into the internal
     /// configuration format. The top-level TOML value must be a table.
     ///
     /// - Parameters:
@@ -157,7 +158,13 @@ internal struct TOMLProviderSnapshot {
             throw TOMLProviderSnapshot.TOMLConfigError.parsingFailed(filePath, "File is not valid UTF-8")
         }
         
-        let parsedTable = try TOMLParser.parse(contentString)
+        let parsedTable: [String: Any]
+        do {
+            parsedTable = try TOMLDecoder.tomlTable(from: contentString)
+        } catch {
+            throw TOMLProviderSnapshot.TOMLConfigError.parsingFailed(filePath, error.localizedDescription)
+        }
+        
         let values = try parseValues(
             parsedTable,
             keyEncoder: Self.keyEncoder,
@@ -278,159 +285,6 @@ extension TOMLProviderSnapshot: ConfigSnapshotProtocol {
     }
 }
 
-/// A basic TOML parser that supports the subset of TOML needed for configuration.
-internal enum TOMLParser {
-    
-    /// Parse a TOML document into a table (dictionary) format.
-    static func parse(_ content: String) throws -> [String: Any] {
-        let parser = Parser(content: content)
-        return try parser.parse()
-    }
-    
-    /// Internal TOML parser implementation.
-    private class Parser {
-        private let lines: [String]
-        private var currentLineIndex = 0
-        private var currentSection: [String] = []
-        
-        init(content: String) {
-            self.lines = content.components(separatedBy: .newlines)
-        }
-        
-        func parse() throws -> [String: Any] {
-            var result: [String: Any] = [:]
-            
-            while currentLineIndex < lines.count {
-                let line = lines[currentLineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-                currentLineIndex += 1
-                
-                // Skip empty lines and comments
-                if line.isEmpty || line.hasPrefix("#") {
-                    continue
-                }
-                
-                // Handle section headers
-                if line.hasPrefix("[") && line.hasSuffix("]") {
-                    let sectionName = String(line.dropFirst().dropLast())
-                    currentSection = sectionName.components(separatedBy: ".")
-                    continue
-                }
-                
-                // Handle key-value pairs
-                if let equalIndex = line.firstIndex(of: "=") {
-                    let keyPart = String(line.prefix(upTo: equalIndex)).trimmingCharacters(in: .whitespacesAndNewlines)
-                    let valuePart = String(line.suffix(from: line.index(after: equalIndex))).trimmingCharacters(in: .whitespacesAndNewlines)
-                    
-                    let fullKey = (currentSection + [keyPart]).joined(separator: ".")
-                    let value = try parseValue(valuePart)
-                    
-                    setNestedValue(&result, key: fullKey, value: value)
-                }
-            }
-            
-            return result
-        }
-        
-        private func parseValue(_ valueString: String) throws -> Any {
-            let trimmed = valueString.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Handle arrays
-            if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
-                let arrayContent = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
-                if arrayContent.isEmpty {
-                    return [String]()  // Empty array defaults to string array
-                }
-                
-                let elements = try parseArrayElements(arrayContent)
-                return elements
-            }
-            
-            // Handle strings (quoted)
-            if (trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"")) ||
-               (trimmed.hasPrefix("'") && trimmed.hasSuffix("'")) {
-                return String(trimmed.dropFirst().dropLast())
-            }
-            
-            // Handle booleans
-            if trimmed.lowercased() == "true" {
-                return true
-            }
-            if trimmed.lowercased() == "false" {
-                return false
-            }
-            
-            // Handle numbers
-            if let intValue = Int(trimmed) {
-                return intValue
-            }
-            
-            if let doubleValue = Double(trimmed) {
-                return doubleValue
-            }
-            
-            // Treat unquoted values as strings (basic TOML strings)
-            return trimmed
-        }
-        
-        private func parseArrayElements(_ content: String) throws -> [Any] {
-            var elements: [Any] = []
-            var current = ""
-            var inQuotes = false
-            var quoteChar: Character? = nil
-            
-            for char in content {
-                if !inQuotes && (char == "\"" || char == "'") {
-                    inQuotes = true
-                    quoteChar = char
-                    current.append(char)
-                } else if inQuotes && char == quoteChar {
-                    inQuotes = false
-                    current.append(char)
-                    quoteChar = nil
-                } else if !inQuotes && char == "," {
-                    if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        elements.append(try parseValue(current))
-                    }
-                    current = ""
-                } else {
-                    current.append(char)
-                }
-            }
-            
-            // Add the last element
-            if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                elements.append(try parseValue(current))
-            }
-            
-            return elements
-        }
-        
-        private func setNestedValue(_ dict: inout [String: Any], key: String, value: Any) {
-            let keys = key.components(separatedBy: ".")
-            setNestedValueRecursive(&dict, keys: keys, value: value)
-        }
-        
-        private func setNestedValueRecursive(_ dict: inout [String: Any], keys: [String], value: Any) {
-            guard !keys.isEmpty else { return }
-            
-            let key = keys[0]
-            if keys.count == 1 {
-                // Last key, set the value
-                dict[key] = value
-            } else {
-                // Intermediate key, ensure there's a dictionary and recurse
-                if dict[key] == nil {
-                    dict[key] = [String: Any]()
-                }
-                if var nestedDict = dict[key] as? [String: Any] {
-                    setNestedValueRecursive(&nestedDict, keys: Array(keys.dropFirst()), value: value)
-                    dict[key] = nestedDict
-                }
-            }
-        }
-    }
-}
-
 /// Parses the parsed TOML table into configuration values.
 /// - Parameters:
 ///   - parsedTable: The parsed TOML table.
@@ -468,7 +322,17 @@ internal func parseValues(
                             return string
                         }
                         tomlValue = .stringArray(stringArray)
+                    } else if firstElement is Int64 {
+                        // TOMLDecoder returns Int64 for integers
+                        let intArray = try array.enumerated().map { index, element in
+                            guard let int64Value = element as? Int64 else {
+                                throw TOMLProviderSnapshot.TOMLConfigError.unexpectedValueInArray(keyComponents, index)
+                            }
+                            return Int(int64Value)
+                        }
+                        tomlValue = .integerArray(intArray)
                     } else if firstElement is Int {
+                        // Fallback for Int (in case the implementation changes)
                         let intArray = try array.enumerated().map { index, element in
                             guard let int = element as? Int else {
                                 throw TOMLProviderSnapshot.TOMLConfigError.unexpectedValueInArray(keyComponents, index)
@@ -498,7 +362,11 @@ internal func parseValues(
                 }
             } else if let string = value as? String {
                 tomlValue = .string(string)
+            } else if let int64 = value as? Int64 {
+                // TOMLDecoder returns Int64 for integers
+                tomlValue = .integer(Int(int64))
             } else if let int = value as? Int {
+                // Fallback for Int (in case the implementation changes)
                 tomlValue = .integer(int)
             } else if let double = value as? Double {
                 tomlValue = .float(double)

@@ -31,13 +31,18 @@ let package = Package(
             url: "git@github.com:apple/swift-configuration.git",
             .upToNextMinor(from: "0.1.0"),
             traits: [.trait(name: "ReloadingSupport", condition: .when(traits: ["ReloadingSupport"]))]
+        ),
+        .package(
+            url: "https://github.com/dduan/TOMLDecoder",
+            from: "0.3.1"
         )
     ],
     targets: [
         .target(
             name: "ConfigurationTOML",
             dependencies: [
-                .product(name: "Configuration", package: "swift-configuration")
+                .product(name: "Configuration", package: "swift-configuration"),
+                .product(name: "TOMLDecoder", package: "TOMLDecoder")
             ]
         ),
         .testTarget(

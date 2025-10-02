@@ -5,6 +5,7 @@ public import SystemPackage
 public import ServiceLifecycle
 public import Logging
 public import Metrics
+import TOMLDecoder
 
 #if canImport(FoundationEssentials)
 import FoundationEssentials
@@ -179,7 +180,13 @@ public final class ReloadingTOMLProvider: Sendable {
                     throw TOMLProviderSnapshot.TOMLConfigError.parsingFailed(filePath, "File is not valid UTF-8")
                 }
                 
-                let parsedTable = try TOMLParser.parse(contentString)
+                let parsedTable: [String: Any]
+                do {
+                    parsedTable = try TOMLDecoder.tomlTable(from: contentString)
+                } catch {
+                    throw TOMLProviderSnapshot.TOMLConfigError.parsingFailed(filePath, error.localizedDescription)
+                }
+                
                 let values = try parseValues(
                     parsedTable,
                     keyEncoder: TOMLProviderSnapshot.keyEncoder,
