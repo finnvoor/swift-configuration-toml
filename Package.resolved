@@ -1,5 +1,5 @@
 {
-  "originHash" : "264ce5ca6097f25ca93097fe4a381044e05cd4f925c5d18ebe50ead3cc07e6f6",
+  "originHash" : "ba0f6ed7bb9eae2b3e6625add589b36e3db31dad8d9b2ca364f176c906a02478",
   "pins" : [
     {
       "identity" : "swift-async-algorithms",
@@ -22,10 +22,10 @@
     {
       "identity" : "swift-configuration",
       "kind" : "remoteSourceControl",
-      "location" : "git@github.com:apple/swift-configuration.git",
+      "location" : "https://github.com/czechboy0/swift-configuration",
       "state" : {
-        "revision" : "7e5bc11e2c455da4aa8b73f4be356d7f0c3dc763",
-        "version" : "0.1.1"
+        "branch" : "hd-generic-file-providers",
+        "revision" : "6eb8da9816b0b7953526a72ce090dc12624986ca"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swift-server/swift-service-lifecycle",
       "state" : {
-        "revision" : "e7187309187695115033536e8fc9b2eb87fd956d",
-        "version" : "2.8.0"
+        "revision" : "0fcc4c9c2d58dd98504c06f7308c86de775396ff",
+        "version" : "2.9.0"
       }
     },
     {
