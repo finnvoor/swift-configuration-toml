@@ -28,9 +28,9 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            url: "git@github.com:apple/swift-configuration.git",
-            .upToNextMinor(from: "0.1.0"),
-            traits: [.trait(name: "ReloadingSupport", condition: .when(traits: ["ReloadingSupport"]))]
+            url: "https://github.com/czechboy0/swift-configuration",
+            branch: "hd-generic-file-providers",
+            traits: [.defaults, .trait(name: "ReloadingSupport", condition: .when(traits: ["ReloadingSupport"]))]
         ),
         .package(
             url: "https://github.com/dduan/TOMLDecoder",
@@ -69,6 +69,12 @@ for target in package.targets {
 
         // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md
         settings.append(.enableUpcomingFeature("InternalImportsByDefault"))
+
+        settings.append(
+            .enableExperimentalFeature(
+                "AvailabilityMacro=Configuration 1.0:macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0"
+            )
+        )
 
         target.swiftSettings = settings
     }
